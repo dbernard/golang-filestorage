@@ -1,0 +1,22 @@
+# This is a comment
+ 
+# application is mandatory
+# later on the web, we might use some other name
+application: home
+ 
+# version is mandatory
+version: 1-0
+ 
+# runtime is mandatory
+runtime: go
+ 
+# api_version is mandatory
+api_version: go1
+ 
+# handlers is mandatory
+handlers:
+- url: /resources
+  static_dir: resources
+
+- url: /.*
+  script: _go_app

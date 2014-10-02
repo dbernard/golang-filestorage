@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>File Upload Demo</title>
+    <link type="text/css" rel="stylesheet" href="/css/bootstrap.min.css" />
+  </head>
+  <body>
+    <div class="container">
+      <h1>Login</h1>
+      <div class="message">{{.}}</div>
+      <form class="form-signin" method="post" action="/" enctype="multipart/form-data">
+        User: <input type="text" name="username" size="15"><br>
+        Password: <input type="text" name="password" size="15"><br>
+        <div align="center">
+          <p><input type="submit" value="Login"></p>
+        </div>
+      </form>
+    </div>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"></script>
+    <script src="/js/bootstrap.min.js"></script>
+  </body>
+</html>

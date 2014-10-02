@@ -9,16 +9,41 @@ import (
 	"strings"
 	"strconv"
 	"database/sql"
-	_ "github.com/mattn/go-sqlite3"
+	//"encoding/base64"
+	_ "mattn/go-sqlite3"
 	"html/template"
 	"net/http"
 )
+
+type handler func(w http.ResponseWriter, r *http.Request)
 
 // Pre compile templates
 var templates = template.Must(template.ParseFiles("resources/upload.html"))
 
 // Global databse variable for manipulation
 var database (*sql.DB)
+
+/*func init() {
+	db, err := initializeDatabase("database/files.db")
+	if err != nil {
+		// TODO: How should we handle errors here?
+		log.Fatal(err)
+	}
+	
+	// Set the global database variable for later use
+	if db == nil {
+		// TODO: Again, how can we handle this error
+		log.Fatal("No database returned")
+	}
+
+	database = db
+
+	http.HandleFunc("/upload", uploadHandler)
+
+	http.HandleFunc("/download/", downloadHandler)
+
+	http.Handle("/resources/", http.StripPrefix("/resources/", http.FileServer(http.Dir("resources"))))
+}*/
 
 // Load a template to be displayed
 func loadTemplate(w http.ResponseWriter, tmpl string, data interface{}) {
@@ -111,11 +136,34 @@ func databaseRemove(filename string) (error) {
 	return nil
 }
 
+func executeUpload(w http.ResponseWriter, r *http.Request) {
+	// Execute this only if we have valid credentials
+}
+
 // Handle upload requests
 func uploadHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	// GET request loads the upload form
 	case "GET":
+		/*if r.Header.Get("Authorization") == "" {
+			http.Error(w, "authorization failed", http.StatusUnauthorized)
+			return
+		}
+		auth := strings.SplitN(r.Header["Authorization"][0], " ", 2)
+
+		if len(auth) != 2 || auth[0] != "Basic" {
+			http.Error(w, "bad syntax", http.StatusBadRequest)
+			return
+		}
+
+		payload, _ := base64.StdEncoding.DecodeString(auth[1])
+		pair := strings.SplitN(string(payload), ":", 2)
+
+		if len(pair) != 2 || !Validate(pair[0], pair[1]) {
+			http.Error(w, "authorization failed", http.StatusUnauthorized)
+			return
+		}*/
+
 		loadTemplate(w, "upload", nil)
 
 	// POST will upload the file
@@ -185,6 +233,20 @@ func downloadHandler(w http.ResponseWriter, r *http.Request) {
 	// Write the content to a buffer to prepare it for downloading
 	buff := bytes.NewBufferString(content)
 	io.Copy(w, buff)
+}
+
+func basicAuthHandler(w http.ResponseWriter, r *http.Request) {
+	client := &http.Client{}
+	req, _ := http.NewRequest("GET", "http://localhost:8080/upload", nil)
+	req.SetBasicAuth("user1", "pass1")
+	client.Do(req)
+}
+
+func Validate(username, password string) bool {
+	if username == "user1" && password == "pass1" {
+		return true
+	}
+	return false
 }
 
 func main() {
