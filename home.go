@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"database/sql"
 	//"encoding/base64"
-	_ "github.com/mattn/go-sqlite3"
+	_ "github.com/lib/pq"
 	"html/template"
 	"net/http"
 )
@@ -23,28 +23,6 @@ var templates = template.Must(template.ParseFiles("resources/upload.html"))
 // Global databse variable for manipulation
 var database (*sql.DB)
 
-/*func init() {
-	db, err := initializeDatabase("database/files.db")
-	if err != nil {
-		// TODO: How should we handle errors here?
-		log.Fatal(err)
-	}
-	
-	// Set the global database variable for later use
-	if db == nil {
-		// TODO: Again, how can we handle this error
-		log.Fatal("No database returned")
-	}
-
-	database = db
-
-	http.HandleFunc("/upload", uploadHandler)
-
-	http.HandleFunc("/download/", downloadHandler)
-
-	http.Handle("/resources/", http.StripPrefix("/resources/", http.FileServer(http.Dir("resources"))))
-}*/
-
 // Load a template to be displayed
 func loadTemplate(w http.ResponseWriter, tmpl string, data interface{}) {
 	templates.ExecuteTemplate(w, tmpl+".html", data)
@@ -53,8 +31,8 @@ func loadTemplate(w http.ResponseWriter, tmpl string, data interface{}) {
 // TODO: Move DB code into its own file!
 
 // Initilaze the database that will contain the user JSON file contents
-func initializeDatabase(path string) (*sql.DB, error) {
-	db, err := sql.Open("sqlite3", path)
+func initializeDatabase() (*sql.DB, error) {
+	db, err := sql.Open("postgres", "postgres://csjuhxkfvajwiv:YdQEjG2cD5RTuluw2F6991RlOs@ec2-23-23-80-55.compute-1.amazonaws.com:5432/d3n2d68n0p67j2")
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +75,7 @@ func databaseInsert(filename string, data string) (string, error) {
 		return "", err
 	}
 
-	_, err = tx.Exec("INSERT INTO files VALUES (?, ?)", filename, data)
+	_, err = tx.Exec("INSERT INTO files VALUES ($1, $2)", filename, data)
 	if err != nil {
 		return "", err
 	}
@@ -109,7 +87,7 @@ func databaseInsert(filename string, data string) (string, error) {
 
 // Handle retriving info from database
 func databaseFetch(filename string) (string, error) {
-	stmt, err := database.Prepare("SELECT content FROM files WHERE filename=?")
+	stmt, err := database.Prepare("SELECT content FROM files WHERE filename=$1")
 	if err != nil {
 		return "", err
 	}
@@ -128,7 +106,7 @@ func databaseFetch(filename string) (string, error) {
 // Handle removal from a database
 // (when should this be done? automated?)
 func databaseRemove(filename string) (error) {
-	_, err := database.Exec("DELETE FROM files WHERE filename=?", filename)
+	_, err := database.Exec("DELETE FROM files WHERE filename=$1", filename)
 	if err != nil {
 		return err
 	}
@@ -250,7 +228,7 @@ func Validate(username, password string) bool {
 }
 
 func main() {
-	db, err := initializeDatabase("database/files.db")
+	db, err := initializeDatabase()
 	if err != nil {
 		// TODO: How should we handle errors here?
 		log.Fatal(err)
