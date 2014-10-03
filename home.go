@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"database/sql"
 	//"encoding/base64"
-	_ "mattn/go-sqlite3"
+	_ "github.com/mattn/go-sqlite3"
 	"html/template"
 	"net/http"
 )
