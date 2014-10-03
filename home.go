@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"fmt"
 	"log"
+	"os"
 	"strings"
 	"strconv"
 	"database/sql"
@@ -248,6 +249,9 @@ func main() {
 
 	//http.Handle("/resources/", http.StripPrefix("/resources/", http.FileServer(http.Dir("resources"))))
 
-	http.ListenAndServe(":8080", nil)
+	http.ListenAndServe(":"+os.Getenv("PORT"), nil)
+	if err != nil {
+		panic(err)
+	}
 }
 
