@@ -2,13 +2,12 @@
 <html lang="en">
   <head>
     <title>File Upload Demo</title>
-    <link type="text/css" rel="stylesheet" href="/css/bootstrap.min.css" />
   </head>
   <body>
     <div class="container">
       <h1>File Upload Demo</h1>
       <div class="message">{{.}}</div>
-      <form class="form-signin" method="post" action="/upload" enctype="multipart/form-data">
+      <form class="form-signin" method="post" action="/" enctype="multipart/form-data">
         <fieldset>
           User: <input type="text" name="username" id="username" size="15">
           Password: <input type="text" name="password" id="password" size="15"><br>
@@ -17,7 +16,5 @@
         </fieldset>
       </form>
     </div>
-    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"></script>
-    <script src="/js/bootstrap.min.js"></script>
   </body>
 </html>

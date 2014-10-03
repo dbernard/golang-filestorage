@@ -242,11 +242,11 @@ func main() {
 
 	database = db
 
-	http.HandleFunc("/upload", uploadHandler)
+	http.HandleFunc("/", uploadHandler)
 
 	http.HandleFunc("/download/", downloadHandler)
 
-	http.Handle("/resources/", http.StripPrefix("/resources/", http.FileServer(http.Dir("resources"))))
+	//http.Handle("/resources/", http.StripPrefix("/resources/", http.FileServer(http.Dir("resources"))))
 
 	http.ListenAndServe(":8080", nil)
 }
