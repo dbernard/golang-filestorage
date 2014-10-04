@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"io/ioutil"
 	"fmt"
@@ -10,13 +11,11 @@ import (
 	"strings"
 	"strconv"
 	"database/sql"
-	//"encoding/base64"
+	"encoding/base64"
 	_ "github.com/lib/pq"
 	"html/template"
 	"net/http"
 )
-
-type handler func(w http.ResponseWriter, r *http.Request)
 
 // Pre compile templates
 var templates = template.Must(template.ParseFiles("resources/upload.html"))
@@ -33,7 +32,7 @@ func loadTemplate(w http.ResponseWriter, tmpl string, data interface{}) {
 
 // Initilaze the database that will contain the user JSON file contents
 func initializeDatabase() (*sql.DB, error) {
-	db, err := sql.Open("postgres", "postgres://csjuhxkfvajwiv:YdQEjG2cD5RTuluw2F6991RlOs@ec2-23-23-80-55.compute-1.amazonaws.com:5432/d3n2d68n0p67j2")
+	db, err := sql.Open("postgres", "YOUR-DATABASE-URL-HERE")
 	if err != nil {
 		return nil, err
 	}
@@ -115,8 +114,45 @@ func databaseRemove(filename string) (error) {
 	return nil
 }
 
-func executeUpload(w http.ResponseWriter, r *http.Request) {
+func executeUpload(r *http.Request) (string, error) {
 	// Execute this only if we have valid credentials
+	success := BasicAuth(r)
+	if !success {
+		return "", errors.New("authorization failure")
+	}
+
+	// Filename used in download url later
+	fn := ""
+
+	// Processes request as a stream
+	m := r.MultipartForm
+
+	files := m.File["myfiles"]
+
+	for i, _ := range files {
+		file, err := files[i].Open()
+		defer file.Close()
+		if err != nil {
+			return "", err
+		}
+
+		if !strings.HasSuffix(files[i].Filename, ".json") {
+			return "", errors.New("invalid file type")
+		}
+
+		slurp, err := ioutil.ReadAll(file)
+		if err != nil {
+			return "", err
+		}
+
+		// Strip the .json off of the end of the filename
+		name := strings.TrimSuffix(files[i].Filename, ".json")
+		fn, err = databaseInsert(name, string(slurp))
+		if err != nil {
+			return "", err
+		}
+	}
+	return fn, nil
 }
 
 // Handle upload requests
@@ -124,67 +160,26 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	// GET request loads the upload form
 	case "GET":
-		/*if r.Header.Get("Authorization") == "" {
-			http.Error(w, "authorization failed", http.StatusUnauthorized)
-			return
-		}
-		auth := strings.SplitN(r.Header["Authorization"][0], " ", 2)
-
-		if len(auth) != 2 || auth[0] != "Basic" {
-			http.Error(w, "bad syntax", http.StatusBadRequest)
-			return
-		}
-
-		payload, _ := base64.StdEncoding.DecodeString(auth[1])
-		pair := strings.SplitN(string(payload), ":", 2)
-
-		if len(pair) != 2 || !Validate(pair[0], pair[1]) {
-			http.Error(w, "authorization failed", http.StatusUnauthorized)
-			return
-		}*/
+		
 
 		loadTemplate(w, "upload", nil)
 
 	// POST will upload the file
 	case "POST":
-		// Filename used in download url later
-		fn := ""
-		// Processes request as a stream
-		mpreader, err := r.MultipartReader()
+		username := r.FormValue("username")
+		password := r.FormValue("password")
+		r.SetBasicAuth(username, password)
+		fn, err := executeUpload(r)
 
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			w.WriteHeader(http.StatusInternalServerError)
+			fail_str := fmt.Sprintf("Failed: %s", err.Error())
+			loadTemplate(w, "upload", fail_str)
 			return
 		}
-
-		for {
-			part, err := mpreader.NextPart()
-			if err == io.EOF {
-				break
-			}
-
-			if part.FileName() == "" {
-				continue
-			} else if !strings.HasSuffix(part.FileName(), ".json") {
-				w.WriteHeader(http.StatusUnsupportedMediaType)
-				loadTemplate(w, "upload", "Failed: One or more of the files provided was an invalid file type.")
-				return
-			}
-
-			slurp, err := ioutil.ReadAll(part)
-			if err != nil {
-				fmt.Printf(err.Error())
-			}
-
-			// Strip the .json off of the end of the filename
-			name := strings.TrimSuffix(part.FileName(), ".json")
-			fn, err = databaseInsert(name, string(slurp))
-			if err != nil {
-				fmt.Printf(err.Error())
-			}
-		}
+		
 		dl_url := fmt.Sprintf("/download/%s", fn)
-		success_msg := fmt.Sprintf("Successfully uploaded! Visit %s later to download your file.", dl_url)
+		success_msg := fmt.Sprintf("Successfully uploaded! Visit (this URL)%s later to download your file.", dl_url)
 		loadTemplate(w, "upload", success_msg)
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
@@ -214,11 +209,24 @@ func downloadHandler(w http.ResponseWriter, r *http.Request) {
 	io.Copy(w, buff)
 }
 
-func basicAuthHandler(w http.ResponseWriter, r *http.Request) {
-	client := &http.Client{}
-	req, _ := http.NewRequest("GET", "http://localhost:8080/upload", nil)
-	req.SetBasicAuth("user1", "pass1")
-	client.Do(req)
+func BasicAuth(r *http.Request) (bool) {
+	if r.Header.Get("Authorization") == "" {
+		return false
+	}
+	auth := strings.SplitN(r.Header["Authorization"][0], " ", 2)
+
+	if len(auth) != 2 || auth[0] != "Basic" {
+		return false
+	}
+
+	payload, _ := base64.StdEncoding.DecodeString(auth[1])
+	pair := strings.SplitN(string(payload), ":", 2)
+
+	if len(pair) != 2 || !Validate(pair[0], pair[1]) {
+		return false
+	}
+
+	return true
 }
 
 func Validate(username, password string) bool {
@@ -246,8 +254,6 @@ func main() {
 	http.HandleFunc("/", uploadHandler)
 
 	http.HandleFunc("/download/", downloadHandler)
-
-	//http.Handle("/resources/", http.StripPrefix("/resources/", http.FileServer(http.Dir("resources"))))
 
 	http.ListenAndServe(":"+os.Getenv("PORT"), nil)
 	if err != nil {
