@@ -115,6 +115,10 @@ func downloadHandler(w http.ResponseWriter, r *http.Request) {
 	case "GET":
 		url := r.URL.String()
 		file := strings.TrimPrefix(url, "/download/")
+		if file == "" {
+			http.Error(w, "no filename provided", http.StatusNotFound)
+			return
+		}
 
 		// Fetch the file from the database
 		content, err := database.DatabaseFetch(file)
