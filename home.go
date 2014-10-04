@@ -26,45 +26,48 @@ func loadTemplate(w http.ResponseWriter, tmpl string, data interface{}) {
 }
 
 // Execute the upload to database
-func executeUpload(r *http.Request) (string, error) {
+func executeUpload(r *http.Request) ([]string, error) {
+	// Filename used in download url later
+	var fnames []string
+
 	// Execute this only if we have valid credentials
 	success := BasicAuth(r)
 	if !success {
-		return "", errors.New("authorization failure")
+		return fnames, errors.New("authorization failure")
 	}
-
-	// Filename used in download url later
-	fn := ""
 
 	// Processes request as a stream
 	m := r.MultipartForm
 
+	// Grab the selected files
 	files := m.File["myfiles"]
 
 	for i, _ := range files {
 		file, err := files[i].Open()
 		defer file.Close()
 		if err != nil {
-			return "", err
+			return fnames, err
 		}
 
 		if !strings.HasSuffix(files[i].Filename, ".json") {
-			return "", errors.New("invalid file type")
+			return fnames, errors.New("invalid file type")
 		}
 
 		slurp, err := ioutil.ReadAll(file)
 		if err != nil {
-			return "", err
+			return fnames, err
 		}
 
-		// Strip the .json off of the end of the filename
+		// Strip the .json off of the end of the filename, add the filename to
+		// the array of names.
 		name := strings.TrimSuffix(files[i].Filename, ".json")
-		fn, err = database.DatabaseInsert(name, string(slurp))
+		fn, err := database.DatabaseInsert(name, string(slurp))
+		fnames = append(fnames, fn)
 		if err != nil {
-			return "", err
+			return fnames, err
 		}
 	}
-	return fn, nil
+	return fnames, nil
 }
 
 // Handle upload requests
@@ -81,7 +84,7 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 		username := r.FormValue("username")
 		password := r.FormValue("password")
 		r.SetBasicAuth(username, password)
-		fn, err := executeUpload(r)
+		filenames, err := executeUpload(r)
 
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
@@ -89,10 +92,15 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 			loadTemplate(w, "upload", fail_str)
 			return
 		}
-		
-		dl_url := fmt.Sprintf("/download/%s", fn)
-		success_msg := fmt.Sprintf("Successfully uploaded! Visit (this URL)%s later to download your file.", dl_url)
-		loadTemplate(w, "upload", success_msg)
+
+		var success_msg bytes.Buffer
+		success_msg.WriteString("Successfully uploaded! Visit the following URLs to download your files: \n")
+		for i, _ := range filenames {
+			dl_url := fmt.Sprintf("/download/%s", filenames[i])
+			success := fmt.Sprintf("(this URL)%s \n", dl_url)
+			success_msg.WriteString(success)
+		}
+		loadTemplate(w, "upload", success_msg.String())
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
 	}
@@ -110,7 +118,7 @@ func downloadHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Initialize the download
+	// Initialize the download - set headers
 	cont_disp := fmt.Sprintf("attachment; filename=%s", file)
 	w.Header().Set("Content-Disposition", cont_disp)
 	w.Header().Set("Content-Type", "application/json")
