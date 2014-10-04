@@ -10,9 +10,9 @@ import (
 	"os"
 	"strings"
 	"strconv"
-	"database/sql"
 	"encoding/base64"
 	_ "github.com/lib/pq"
+	"home/database"
 	"html/template"
 	"net/http"
 )
@@ -20,100 +20,12 @@ import (
 // Pre compile templates
 var templates = template.Must(template.ParseFiles("resources/upload.html"))
 
-// Global databse variable for manipulation
-var database (*sql.DB)
-
 // Load a template to be displayed
 func loadTemplate(w http.ResponseWriter, tmpl string, data interface{}) {
 	templates.ExecuteTemplate(w, tmpl+".html", data)
 }
 
-// TODO: Move DB code into its own file!
-
-// Initilaze the database that will contain the user JSON file contents
-func initializeDatabase() (*sql.DB, error) {
-	db, err := sql.Open("postgres", "YOUR-DATABASE-URL-HERE")
-	if err != nil {
-		return nil, err
-	}
-
-	_, err = db.Exec("CREATE TABLE IF NOT EXISTS files (filename TEXT, content TEXT)")
-	if err != nil {
-		return nil, err
-	}
-
-	return db, nil
-}
-
-func getAvailableFilename(filename string) (string) {
-	suffix := 1
-	for {
-		_, err := databaseFetch(filename + strconv.Itoa(suffix))
-		if err == nil {
-			// Already a file with that name, retry with an incrementing suffix
-			suffix++
-		} else {
-			filename = filename + strconv.Itoa(suffix)
-			break
-		}
-	}
-	return filename
-}
-
-// Handle inserting into a databse
-func databaseInsert(filename string, data string) (string, error) {
-	// Check for existing filename in database.
-	_, err := databaseFetch(filename)
-	if err == nil {
-		// We only want to execute this is there IS a duplicate. This is VERY
-		// inefficient for large numbers of same-named files.
-		filename = getAvailableFilename(filename)
-	}
-
-	tx, err := database.Begin()
-	if err != nil {
-		return "", err
-	}
-
-	_, err = tx.Exec("INSERT INTO files VALUES ($1, $2)", filename, data)
-	if err != nil {
-		return "", err
-	}
-
-	tx.Commit()
-
-	return filename, nil
-}
-
-// Handle retriving info from database
-func databaseFetch(filename string) (string, error) {
-	stmt, err := database.Prepare("SELECT content FROM files WHERE filename=$1")
-	if err != nil {
-		return "", err
-	}
-	
-	defer stmt.Close()
-
-	var data string
-	err = stmt.QueryRow(filename).Scan(&data)
-	if err != nil {
-		return "", err
-	}
-
-	return data, nil
-}
-
-// Handle removal from a database
-// (when should this be done? automated?)
-func databaseRemove(filename string) (error) {
-	_, err := database.Exec("DELETE FROM files WHERE filename=$1", filename)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
+// Execute the upload to database
 func executeUpload(r *http.Request) (string, error) {
 	// Execute this only if we have valid credentials
 	success := BasicAuth(r)
@@ -147,7 +59,7 @@ func executeUpload(r *http.Request) (string, error) {
 
 		// Strip the .json off of the end of the filename
 		name := strings.TrimSuffix(files[i].Filename, ".json")
-		fn, err = databaseInsert(name, string(slurp))
+		fn, err = database.DatabaseInsert(name, string(slurp))
 		if err != nil {
 			return "", err
 		}
@@ -186,13 +98,13 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// Handle a download request
 func downloadHandler(w http.ResponseWriter, r *http.Request) {
 	url := r.URL.String()
 	file := strings.TrimPrefix(url, "/download/")
 
 	// Fetch the file from the database
-	// TODO: Basic HTTP auth
-	content, err := databaseFetch(file)
+	content, err := database.DatabaseFetch(file)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -209,6 +121,7 @@ func downloadHandler(w http.ResponseWriter, r *http.Request) {
 	io.Copy(w, buff)
 }
 
+// Parse basic authentication
 func BasicAuth(r *http.Request) (bool) {
 	if r.Header.Get("Authorization") == "" {
 		return false
@@ -229,6 +142,7 @@ func BasicAuth(r *http.Request) (bool) {
 	return true
 }
 
+// Validate the basic auth username and password
 func Validate(username, password string) bool {
 	if username == "user1" && password == "pass1" {
 		return true
@@ -237,19 +151,10 @@ func Validate(username, password string) bool {
 }
 
 func main() {
-	db, err := initializeDatabase()
+	err := database.InitializeDatabase()
 	if err != nil {
-		// TODO: How should we handle errors here?
 		log.Fatal(err)
 	}
-	
-	// Set the global database variable for later use
-	if db == nil {
-		// TODO: Again, how can we handle this error
-		log.Fatal("No database returned")
-	}
-
-	database = db
 
 	http.HandleFunc("/", uploadHandler)
 
