@@ -77,8 +77,6 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	// GET request loads the upload form
 	case "GET":
-		
-
 		loadTemplate(w, "upload", nil)
 
 	// POST will upload the file
@@ -112,25 +110,31 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 
 // Handle a download request
 func downloadHandler(w http.ResponseWriter, r *http.Request) {
-	url := r.URL.String()
-	file := strings.TrimPrefix(url, "/download/")
+	switch r.Method {
+	// Request a download
+	case "GET":
+		url := r.URL.String()
+		file := strings.TrimPrefix(url, "/download/")
 
-	// Fetch the file from the database
-	content, err := database.DatabaseFetch(file)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		// Fetch the file from the database
+		content, err := database.DatabaseFetch(file)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		// Initialize the download - set headers
+		cont_disp := fmt.Sprintf("attachment; filename=%s", file)
+		w.Header().Set("Content-Disposition", cont_disp)
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Content-Length", strconv.Itoa(len(content)))
+
+		// Write the content to a buffer to prepare it for downloading
+		buff := bytes.NewBufferString(content)
+		io.Copy(w, buff)
+	default:
+		w.WriteHeader(http.StatusMethodNotAllowed)
 	}
-
-	// Initialize the download - set headers
-	cont_disp := fmt.Sprintf("attachment; filename=%s", file)
-	w.Header().Set("Content-Disposition", cont_disp)
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Content-Length", strconv.Itoa(len(content)))
-
-	// Write the content to a buffer to prepare it for downloading
-	buff := bytes.NewBufferString(content)
-	io.Copy(w, buff)
 }
 
 // Parse basic authentication
