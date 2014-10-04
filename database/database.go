@@ -11,7 +11,7 @@ var database (*sql.DB)
 
 // Initilaze the database that will contain the user JSON file contents
 func InitializeDatabase() (error) {
-	db, err := sql.Open("postgres", "postgres://csjuhxkfvajwiv:YdQEjG2cD5RTuluw2F6991RlOs@ec2-23-23-80-55.compute-1.amazonaws.com:5432/d3n2d68n0p67j2")
+	db, err := sql.Open("postgres", "YOUR-DATABASE-URL-HERE")
 	if err != nil {
 		return err
 	}
@@ -25,6 +25,7 @@ func InitializeDatabase() (error) {
 	return nil
 }
 
+// Check for any duplicate file names and return an altername name if necessary
 func GetAvailableFilename(filename string) (string) {
 	suffix := 1
 	for {

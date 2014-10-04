@@ -42,6 +42,8 @@ func executeUpload(r *http.Request) ([]string, error) {
 	// Grab the selected files
 	files := m.File["myfiles"]
 
+	// Iterate through each file, check for .json extension, and insert it
+	// into the database
 	for i, _ := range files {
 		file, err := files[i].Open()
 		defer file.Close()
@@ -86,6 +88,7 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 		r.SetBasicAuth(username, password)
 		filenames, err := executeUpload(r)
 
+		// Display the error message
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			fail_str := fmt.Sprintf("Failed: %s", err.Error())
@@ -93,6 +96,7 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		// Display the success message
 		var success_msg bytes.Buffer
 		success_msg.WriteString("Successfully uploaded! Visit the following URLs to download your files: \n")
 		for i, _ := range filenames {
@@ -140,8 +144,8 @@ func BasicAuth(r *http.Request) (bool) {
 		return false
 	}
 
-	payload, _ := base64.StdEncoding.DecodeString(auth[1])
-	pair := strings.SplitN(string(payload), ":", 2)
+	credentials, _ := base64.StdEncoding.DecodeString(auth[1])
+	pair := strings.SplitN(string(credentials), ":", 2)
 
 	if len(pair) != 2 || !Validate(pair[0], pair[1]) {
 		return false
