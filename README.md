@@ -1,9 +1,8 @@
 #Simple Cloud File Storage with Go
 
-*This code needs to be cleaned up! More coming soon.*
-
-This is a simple example of file storage in the cloud using Go. This example in
-particular stores JSON files and uses simple HTTP basic authentication.
+This is a very simple example of file storage in the cloud using Go. This
+example in particular stores JSON files and uses simple HTTP basic
+authentication.
 
 Because this is an *example*, the authentication credentials aren't really a
 secret and can be setup in the source code... so here are the defaults:
